@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Dynamic MOTD Installer for Debian and Fedora
-# Features: Clear screen, fancy hostname, green banner, color-coded system info
+# Universal Compact MOTD Installer for Debian and Fedora
+# Features: Raspberry Pi style compact layout, clear screen, fancy hostname
 # Usage: sudo bash motd-installer.sh
-# Version: 3.0
+# Version: 4.0
 
 set -e
 
@@ -19,7 +19,7 @@ NC='\033[0m'
 print_header() {
     echo
     echo -e "${BLUE}============================================${NC}"
-    echo -e "${WHITE}  Dynamic MOTD Installer v3.0             ${NC}"
+    echo -e "${WHITE}  Compact Dynamic MOTD Installer v4.0     ${NC}"
     echo -e "${WHITE}  Debian & Fedora Edition                 ${NC}"
     echo -e "${BLUE}============================================${NC}"
     echo
@@ -55,7 +55,7 @@ detect_os() {
         debian|ubuntu)
             PACKAGE_MANAGER="apt"
             ;;
-        fedora|centos|rhel)
+        fedora|centos|rhel|rocky|alma)
             if command -v dnf &> /dev/null; then
                 PACKAGE_MANAGER="dnf"
             else
@@ -78,9 +78,10 @@ cleanup() {
     # Remove any existing MOTD scripts
     rm -f /etc/profile.d/motd.sh 2>/dev/null || true
     rm -f /etc/profile.d/00-motd.sh 2>/dev/null || true
+    rm -f /etc/profile.d/00-dynamic-motd.sh 2>/dev/null || true
     rm -f /etc/profile.d/*motd*.sh 2>/dev/null || true
-    rm -f /etc/update-motd.d/10-dynamic-motd 2>/dev/null || true
     rm -f /etc/update-motd.d/00-dynamic-motd 2>/dev/null || true
+    rm -f /etc/update-motd.d/10-dynamic-motd 2>/dev/null || true
     rm -f /etc/update-motd.d/*motd* 2>/dev/null || true
     
     print_success "Cleanup completed"
@@ -93,37 +94,48 @@ install_dependencies() {
     case $PACKAGE_MANAGER in
         apt)
             apt update -qq 2>/dev/null || true
-            apt install -y bc toilet > /dev/null 2>&1
+            apt install -y bc toilet figlet > /dev/null 2>&1
             ;;
         dnf)
-            dnf install -y bc toilet > /dev/null 2>&1
+            dnf install -y bc toilet figlet > /dev/null 2>&1
             ;;
         yum)
-            yum install -y bc toilet > /dev/null 2>&1
+            yum install -y bc toilet figlet > /dev/null 2>&1
             ;;
     esac
     
-    # Verify toilet installation
+    # Verify installations
     if ! command -v toilet &> /dev/null; then
-        print_error "Failed to install toilet. Falling back to basic banner."
+        print_error "Failed to install toilet. Will use ASCII fallback."
         USE_TOILET=false
     else
         USE_TOILET=true
-        print_success "Dependencies installed (toilet available)"
     fi
+    
+    if ! command -v bc &> /dev/null; then
+        print_error "Failed to install bc. Load calculation may be less accurate."
+        USE_BC=false
+    else
+        USE_BC=true
+    fi
+    
+    print_success "Dependencies installed (toilet: $USE_TOILET, bc: $USE_BC)"
 }
 
-# Create the enhanced MOTD script
-create_motd_content() {
-    if [ "$USE_TOILET" = true ]; then
-        cat << 'MOTD_SCRIPT_EOF'
+# Create the compact MOTD script
+create_compact_motd() {
+    local script_path="$1"
+    
+    cat > "$script_path" << 'COMPACT_MOTD_EOF'
 #!/bin/bash
 
-# Enhanced Dynamic MOTD Script
-# Clear screen completely and position cursor at top
+# Compact Dynamic MOTD Script - Complete Version
+# Matches Raspberry Pi style layout with horizontal information display
+if [[ $- == *i* ]]; then
+    
 printf '\033[2J\033[H'
 
-# Color definitions
+# Color definitions - regular colors (not bright)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -133,15 +145,7 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m'
 
-create_banner() {
-    local text="$1"
-    local length=${#text}
-    local border=$(printf '%*s' $((length + 4)) '' | tr ' ' '=')
-    echo -e "${GREEN}${border}${NC}"
-    echo -e "${GREEN}  $text  ${NC}"
-    echo -e "${GREEN}${border}${NC}"
-}
-
+# Function to get OS information
 get_os_info() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
@@ -157,149 +161,156 @@ get_os_info() {
     fi
 }
 
-get_memory_usage() {
-    local mem_info=$(free -m | awk 'NR==2{printf "%d %d %.0f", $3,$2,$3*100/$2}')
-    local used=$(echo $mem_info | awk '{print $1}')
-    local total=$(echo $mem_info | awk '{print $2}')
-    local percent=$(echo $mem_info | awk '{print $3}')
-    
-    local color=$GREEN
-    if [ "$percent" -gt 80 ]; then
-        color=$RED
-    elif [ "$percent" -gt 60 ]; then
-        color=$YELLOW
-    fi
-    
-    echo -e "  ${color}${used}MB/${total}MB (${percent}%)${NC}"
-}
-
-get_disk_usage() {
-    local disk_info=$(df -h / | awk 'NR==2{print $3,$2,$5}')
-    local used=$(echo $disk_info | awk '{print $1}')
-    local total=$(echo $disk_info | awk '{print $2}')
-    local percent=$(echo $disk_info | awk '{print $3}' | tr -d '%')
-    
-    local color=$GREEN
-    if [ "$percent" -gt 90 ]; then
-        color=$RED
-    elif [ "$percent" -gt 75 ]; then
-        color=$YELLOW
-    fi
-    
-    echo -e "  ${color}${used}/${total} (${percent}%)${NC}"
-}
-
-get_load_color() {
+# Function to calculate system load percentage
+get_load_percent() {
     local load=$(cat /proc/loadavg | awk '{print $1}')
     local cpu_count=$(nproc)
-    local load_percent=$(echo "scale=0; $load * 100 / $cpu_count" | bc -l 2>/dev/null || echo "0")
     
-    if [ "$load_percent" -gt 80 ]; then
-        echo -e "${RED}"
-    elif [ "$load_percent" -gt 60 ]; then
-        echo -e "${YELLOW}"
+    if [ "$cpu_count" -gt 0 ]; then
+        if command -v bc &> /dev/null; then
+            # Use bc for precise calculation
+            echo "scale=0; $load * 100 / $cpu_count" | bc 2>/dev/null || echo "0"
+        else
+            # Fallback using awk
+            echo "$load $cpu_count" | awk '{printf "%.0f", ($1 * 100) / $2}'
+        fi
     else
-        echo -e "${GREEN}"
+        echo "0"
     fi
 }
 
-get_network_info() {
-    local ip=$(ip route get 1 2>/dev/null | awk '{print $7}' | head -1)
-    if [ -n "$ip" ]; then
-        echo -e "  ${CYAN}$ip${NC}"
-    else
-        echo -e "  ${RED}No connection${NC}"
-    fi
+# Function to get memory usage percentage
+get_memory_percent() {
+    free | awk 'NR==2{printf "%.0f", $3*100/$2}'
 }
 
-# Main MOTD display
-echo
-toilet -f smblock -F metal "$(hostname)"
-echo
-create_banner "Welcome to $(hostname)"
+# Function to get total memory
+get_memory_total() {
+    free -h | awk 'NR==2{print $2}'
+}
+
+# Function to get disk usage percentage
+get_disk_percent() {
+    df -h / | awk 'NR==2{print $5}' | tr -d '%'
+}
+
+# Function to get total disk space
+get_disk_total() {
+    df -h / | awk 'NR==2{print $2}'
+}
+
+# Function to get compact uptime format
+get_uptime_compact() {
+    uptime -p | sed 's/up //' | sed 's/ days\?/d/g' | sed 's/ hours\?/h/g' | sed 's/ minutes\?/m/g'
+}
+
+# Function to get primary IP address
+get_ip() {
+    ip route get 1 2>/dev/null | awk '{print $7}' | head -1
+}
+
+# Function to check additional mount points
+check_additional_mounts() {
+    for mount_point in "/home" "/var" "/storage" "/opt" "/tmp" "/boot"; do
+        if mount | grep -q " $mount_point " 2>/dev/null; then
+            local disk_info=$(df -h "$mount_point" 2>/dev/null | awk 'NR==2{printf "%d %s", $5, $2}' | tr -d '%')
+            if [ -n "$disk_info" ]; then
+                local percent=$(echo $disk_info | awk '{print $1}')
+                local total=$(echo $disk_info | awk '{print $2}')
+                local mount_name=$(echo "$mount_point" | sed 's|/||')
+                printf "${GREEN}%-10s     %2d%% of %s${NC}\n" \
+                    "${mount_name}:" "$percent" "$total"
+            fi
+        fi
+    done
+}
+
+# Get all system information
+OS_INFO=$(get_os_info)
+KERNEL=$(uname -r)
+HOSTNAME=$(hostname)
+LOAD_PERCENT=$(get_load_percent)
+UPTIME=$(get_uptime_compact)
+MEMORY_PERCENT=$(get_memory_percent)
+MEMORY_TOTAL=$(get_memory_total)
+DISK_PERCENT=$(get_disk_percent)
+DISK_TOTAL=$(get_disk_total)
+IP_ADDRESS=$(get_ip)
+
+# Display the compact MOTD
 echo
 
-echo -e "${WHITE}System Information:${NC}"
-echo -e "  OS: ${CYAN}$(get_os_info)${NC}"
-echo -e "  Kernel: ${CYAN}$(uname -r)${NC}"
-echo -e "  Uptime: ${CYAN}$(uptime -p)${NC}"
-echo -e "  Load: $(get_load_color)$(cat /proc/loadavg | awk '{print $1, $2, $3}')${NC}"
-echo
-
-echo -e "${WHITE}Resources:${NC}"
-echo -e "  Memory:$(get_memory_usage)"
-echo -e "  Disk (Root):$(get_disk_usage)"
-echo
-
-echo -e "${WHITE}Network:${NC}"
-echo -e "  IP Address:$(get_network_info)"
-echo
-
-echo -e "${PURPLE}System Time: ${CYAN}$(date)${NC}"
-echo
-MOTD_SCRIPT_EOF
-    else
-        # Fallback version without toilet
-        cat << 'MOTD_FALLBACK_EOF'
-#!/bin/bash
-
-# Dynamic MOTD Script (without toilet)
-printf '\033[2J\033[H'
-
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-NC='\033[0m'
-
-echo
-echo -e "${GREEN}================================${NC}"
-echo -e "${GREEN}  Welcome to $(hostname)${NC}"
-echo -e "${GREEN}================================${NC}"
-echo
-
-echo -e "${WHITE}System Information:${NC}"
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    echo -e "  OS: ${CYAN}$PRETTY_NAME${NC}"
+# Hostname display using toilet (with fallback)
+if command -v toilet &> /dev/null; then
+    toilet -f smblock -F metal "$(hostname)"
 else
-    echo -e "  OS: ${CYAN}$(uname -s)${NC}"
+    # ASCII art fallback
+    echo -e "${BLUE}"
+    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+    echo -e "║                            ${HOSTNAME}                            ║"
+    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
 fi
-echo -e "  Kernel: ${CYAN}$(uname -r)${NC}"
-echo -e "  Uptime: ${CYAN}$(uptime -p)${NC}"
-echo -e "  Load: ${GREEN}$(cat /proc/loadavg | awk '{print $1, $2, $3}')${NC}"
+
+# Welcome line with mixed colors (green text, red OS info)
+echo -e "${GREEN}Welcome to ${RED}${OS_INFO}${GREEN} with Linux ${RED}${KERNEL}${NC}"
+
+# Check for unsupported message (like Raspberry Pi)
+if echo "$OS_INFO" | grep -qi "bookworm\|unstable\|testing"; then
+    echo -e "${RED}No end-user support: unsupported ($(echo $OS_INFO | grep -oiE 'bookworm|unstable|testing')) userspace!${NC}"
+fi
+
+# Empty line as shown in screenshot
 echo
 
-echo -e "${WHITE}Resources:${NC}"
-echo -e "  Memory: ${GREEN}$(free -h | awk 'NR==2{printf "%s/%s", $3,$2}')${NC}"
-echo -e "  Disk: ${GREEN}$(df -h / | awk 'NR==2{printf "%s/%s", $3,$2}')${NC}"
+# Full system info line (uname -srnvm)
+echo -e "${GREEN}$(uname -srnvm)${NC}"
+
+# Compact system information in horizontal layout
+printf "${GREEN}System load:   %2d%%%-12s Up time:       %s${NC}\n" \
+    "$LOAD_PERCENT" "" "$UPTIME"
+
+printf "${GREEN}Memory usage:  %2d%% of %-8s IP:            %s${NC}\n" \
+    "$MEMORY_PERCENT" "$MEMORY_TOTAL" "${IP_ADDRESS:-No connection}"
+
+printf "${GREEN}Usage of /:    %2d%% of %s${NC}\n" \
+    "$DISK_PERCENT" "$DISK_TOTAL"
+
+# Check for additional mount points and display them
+check_additional_mounts
+
+# Empty line before menu
 echo
 
-echo -e "${WHITE}Network:${NC}"
-local_ip=$(ip route get 1 2>/dev/null | awk '{print $7}' | head -1)
-if [ -n "$local_ip" ]; then
-    echo -e "  IP: ${CYAN}$local_ip${NC}"
+# Menu/configuration line (red brackets, white commands)
+if command -v apt &> /dev/null; then
+    # Debian/Ubuntu
+    echo -e "${RED}[ Menu-driven system configuration (beta): ${WHITE}sudo apt update && sudo apt install raspi-config${RED} ]${NC}"
+elif command -v dnf &> /dev/null; then
+    # Fedora
+    echo -e "${RED}[ System management: ${WHITE}sudo dnf install cockpit && sudo systemctl enable --now cockpit.socket${RED} ]${NC}"
+elif command -v yum &> /dev/null; then
+    # CentOS/RHEL
+    echo -e "${RED}[ System management: ${WHITE}sudo yum install cockpit && sudo systemctl enable --now cockpit.socket${RED} ]${NC}"
 else
-    echo -e "  IP: ${RED}No connection${NC}"
+    # Generic
+    echo -e "${RED}[ System monitoring: ${WHITE}htop${RED} | Logs: ${WHITE}journalctl -f${RED} | Config: ${WHITE}sudo nano /etc/profile.d/00-dynamic-motd.sh${RED} ]${NC}"
 fi
+
 echo
 
-echo -e "${PURPLE}Time: ${CYAN}$(date)${NC}"
-echo
-MOTD_FALLBACK_EOF
-    fi
+fi
+COMPACT_MOTD_EOF
+    
+    chmod +x "$script_path"
 }
 
-# Install using update-motd.d method
+# Install using update-motd.d method (Debian/Ubuntu)
 install_update_motd_method() {
     print_info "Installing using update-motd.d method..."
     
     # Create the script as 00-dynamic-motd to run first
-    create_motd_content > /etc/update-motd.d/00-dynamic-motd
-    chmod +x /etc/update-motd.d/00-dynamic-motd
+    create_compact_motd "/etc/update-motd.d/00-dynamic-motd"
     
     # Disable default MOTD
     if [ -f /etc/motd ]; then
@@ -330,6 +341,7 @@ UPDATE_MOTD_EOF
     # Test the script
     if /etc/update-motd.d/00-dynamic-motd > /dev/null 2>&1; then
         print_success "update-motd.d method installed successfully"
+        MOTD_FILE="/etc/update-motd.d/00-dynamic-motd"
         return 0
     else
         print_error "update-motd.d method failed"
@@ -337,72 +349,12 @@ UPDATE_MOTD_EOF
     fi
 }
 
-# Fallback to profile.d method
+# Install using profile.d method (Fedora/RHEL)
 install_profile_method() {
-    print_info "Using profile.d method..."
+    print_info "Installing using profile.d method..."
     
-    # Create profile.d script with SSH detection
-    cat > /etc/profile.d/00-dynamic-motd.sh << 'PROFILE_SCRIPT_EOF'
-#!/bin/bash
-
-# Only show for SSH interactive sessions
-if [[ $- == *i* ]] && [[ -n "$SSH_CONNECTION" || -n "$SSH_CLIENT" || -n "$SSH_TTY" ]]; then
-    
-printf '\033[2J\033[H'
-
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-NC='\033[0m'
-
-echo
-if command -v toilet &> /dev/null; then
-    toilet -f smblock -F metal "$(hostname)"
-    echo
-fi
-
-echo -e "${GREEN}================================${NC}"
-echo -e "${GREEN}  Welcome to $(hostname)${NC}"
-echo -e "${GREEN}================================${NC}"
-echo
-
-echo -e "${WHITE}System Information:${NC}"
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    echo -e "  OS: ${CYAN}$PRETTY_NAME${NC}"
-else
-    echo -e "  OS: ${CYAN}$(uname -s)${NC}"
-fi
-echo -e "  Kernel: ${CYAN}$(uname -r)${NC}"
-echo -e "  Uptime: ${CYAN}$(uptime -p)${NC}"
-echo -e "  Load: ${GREEN}$(cat /proc/loadavg | awk '{print $1, $2, $3}')${NC}"
-echo
-
-echo -e "${WHITE}Resources:${NC}"
-echo -e "  Memory: ${GREEN}$(free -h | awk 'NR==2{printf "%s/%s", $3,$2}')${NC}"
-echo -e "  Disk: ${GREEN}$(df -h / | awk 'NR==2{printf "%s/%s", $3,$2}')${NC}"
-echo
-
-echo -e "${WHITE}Network:${NC}"
-local_ip=$(ip route get 1 2>/dev/null | awk '{print $7}' | head -1)
-if [ -n "$local_ip" ]; then
-    echo -e "  IP: ${CYAN}$local_ip${NC}"
-else
-    echo -e "  IP: ${RED}No connection${NC}"
-fi
-echo
-
-echo -e "${PURPLE}Time: ${CYAN}$(date)${NC}"
-echo
-
-fi
-PROFILE_SCRIPT_EOF
-
-    chmod +x /etc/profile.d/00-dynamic-motd.sh
+    # Create the compact MOTD script for profile.d
+    create_compact_motd "/etc/profile.d/00-dynamic-motd.sh"
     
     # Disable default MOTD
     if [ -f /etc/motd ]; then
@@ -413,6 +365,7 @@ PROFILE_SCRIPT_EOF
     # Test the script
     if SSH_CONNECTION="test" bash /etc/profile.d/00-dynamic-motd.sh > /dev/null 2>&1; then
         print_success "profile.d method installed successfully"
+        MOTD_FILE="/etc/profile.d/00-dynamic-motd.sh"
         return 0
     else
         print_error "profile.d method failed"
@@ -424,16 +377,14 @@ PROFILE_SCRIPT_EOF
 test_installation() {
     print_info "Testing installation..."
     
-    if [ -f /etc/update-motd.d/00-dynamic-motd ]; then
-        echo -e "\n${CYAN}--- MOTD Preview ---${NC}"
-        /etc/update-motd.d/00-dynamic-motd 2>/dev/null || true
+    if [ -n "$MOTD_FILE" ] && [ -f "$MOTD_FILE" ]; then
+        echo -e "\n${CYAN}--- Compact MOTD Preview ---${NC}"
+        if [[ "$MOTD_FILE" == *"profile.d"* ]]; then
+            SSH_CONNECTION="test" bash "$MOTD_FILE" 2>/dev/null || true
+        else
+            "$MOTD_FILE" 2>/dev/null || true
+        fi
         echo -e "${CYAN}--- End Preview ---${NC}\n"
-        MOTD_FILE="/etc/update-motd.d/00-dynamic-motd"
-    elif [ -f /etc/profile.d/00-dynamic-motd.sh ]; then
-        echo -e "\n${CYAN}--- MOTD Preview ---${NC}"
-        SSH_CONNECTION="test" bash /etc/profile.d/00-dynamic-motd.sh 2>/dev/null || true
-        echo -e "${CYAN}--- End Preview ---${NC}\n"
-        MOTD_FILE="/etc/profile.d/00-dynamic-motd.sh"
     fi
     
     print_success "Installation completed successfully!"
@@ -443,7 +394,7 @@ test_installation() {
 # Uninstall function
 uninstall() {
     print_header
-    print_info "Uninstalling Dynamic MOTD..."
+    print_info "Uninstalling Compact Dynamic MOTD..."
     
     # Remove all MOTD files
     rm -f /etc/update-motd.d/00-dynamic-motd 2>/dev/null || true
@@ -465,7 +416,7 @@ uninstall() {
         print_success "Restored original PAM configuration"
     fi
     
-    print_success "Dynamic MOTD uninstalled successfully"
+    print_success "Compact Dynamic MOTD uninstalled successfully"
 }
 
 # Main installation function
@@ -477,17 +428,30 @@ install() {
     cleanup
     install_dependencies
     
-    # Try update-motd.d method first, fallback to profile.d
-    if [ -d /etc/update-motd.d ]; then
-        if install_update_motd_method; then
-            print_success "Installed using update-motd.d method"
-        else
-            print_info "update-motd.d failed, trying profile.d method..."
+    # Choose installation method based on OS
+    case $OS in
+        debian|ubuntu)
+            # Try update-motd.d method first, fallback to profile.d
+            if [ -d /etc/update-motd.d ]; then
+                if install_update_motd_method; then
+                    print_success "Installed using update-motd.d method"
+                else
+                    print_info "update-motd.d failed, trying profile.d method..."
+                    install_profile_method
+                fi
+            else
+                install_profile_method
+            fi
+            ;;
+        fedora|centos|rhel|rocky|alma)
+            # Use profile.d method for Fedora/RHEL family
             install_profile_method
-        fi
-    else
-        install_profile_method
-    fi
+            ;;
+        *)
+            print_error "Unsupported OS for installation"
+            exit 1
+            ;;
+    esac
     
     # Restart SSH service if possible
     if command -v systemctl &> /dev/null; then
@@ -496,13 +460,17 @@ install() {
     
     test_installation
     
-    echo -e "${GREEN}🎉 Installation complete!${NC}"
-    if [ "$USE_TOILET" = true ]; then
-        echo -e "${CYAN}ℹ  Features: Screen clear, fancy hostname (toilet), green banner, color-coded stats${NC}"
-    else
-        echo -e "${CYAN}ℹ  Features: Screen clear, green banner, color-coded stats${NC}"
-    fi
-    echo -e "${CYAN}ℹ  Log out and SSH back in to see your new MOTD${NC}"
+    echo -e "${GREEN}🎉 Compact MOTD Installation Complete!${NC}"
+    echo -e "${CYAN}ℹ  Features:${NC}"
+    echo -e "   • ${GREEN}Screen clearing on login${NC}"
+    echo -e "   • ${GREEN}Fancy ASCII hostname (toilet)${NC}"
+    echo -e "   • ${GREEN}Raspberry Pi style compact layout${NC}"
+    echo -e "   • ${GREEN}Horizontal system information${NC}"
+    echo -e "   • ${GREEN}Color-coded statistics${NC}"
+    echo -e "   • ${GREEN}Additional mount point detection${NC}"
+    echo
+    echo -e "${CYAN}ℹ  Log out and SSH/login back in to see your new compact MOTD${NC}"
+    echo -e "${CYAN}ℹ  To customize: sudo nano $MOTD_FILE${NC}"
     echo -e "${CYAN}ℹ  To uninstall: sudo bash $0 --uninstall${NC}"
     echo
 }
@@ -516,17 +484,22 @@ case "${1:-}" in
         print_header
         echo "Usage: $0 [OPTION]"
         echo
-        echo "Dynamic MOTD with enhanced features:"
+        echo "Compact Dynamic MOTD with Raspberry Pi style layout:"
         echo "  • Screen clearing on login"
         echo "  • Fancy ASCII hostname (using toilet)"
-        echo "  • Green welcome banner"
-        echo "  • Color-coded system monitoring"
+        echo "  • Horizontal compact information display"
+        echo "  • Mixed green/red color scheme"
+        echo "  • Additional mount point detection"
         echo "  • Works on Debian and Fedora"
         echo
         echo "Options:"
-        echo "  --install, -i    Install dynamic MOTD (default)"
-        echo "  --uninstall, -u  Uninstall dynamic MOTD"
+        echo "  --install, -i    Install compact dynamic MOTD (default)"
+        echo "  --uninstall, -u  Uninstall compact dynamic MOTD"
         echo "  --help, -h       Show this help message"
+        echo
+        echo "Examples:"
+        echo "  sudo $0                    # Install compact MOTD"
+        echo "  sudo $0 --uninstall       # Remove compact MOTD"
         echo
         ;;
     *)
