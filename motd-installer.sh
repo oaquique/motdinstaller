@@ -212,6 +212,20 @@ get_ip() {
     ip route get 1 2>/dev/null | awk '{print $7}' | head -1
 }
 
+# Function to get last login information (for Fedora systems)
+get_last_login() {
+    # Get last login info (excluding current session)
+    last -2 $USER 2>/dev/null | head -2 | tail -1 | awk '{
+        if (NF >= 7) {
+            print $3, $4, $5, $6, $7, "from", $3
+        } else if (NF >= 6) {
+            print $3, $4, $5, $6, "from", $3
+        } else {
+            print $0
+        }
+    }' | sed 's/from from/from/'
+}
+
 # Function to check additional mount points
 check_additional_mounts() {
     for mount_point in "/home" "/var" "/storage" "/opt" "/tmp" "/boot"; do
@@ -239,6 +253,11 @@ MEMORY_TOTAL=$(get_memory_total)
 DISK_PERCENT=$(get_disk_percent)
 DISK_TOTAL=$(get_disk_total)
 IP_ADDRESS=$(get_ip)
+
+# Get last login only for Fedora systems (Debian handles it natively)
+if command -v dnf &> /dev/null || command -v yum &> /dev/null; then
+    LAST_LOGIN=$(get_last_login)
+fi
 
 # Display the compact MOTD
 echo
@@ -287,8 +306,14 @@ echo
 
 # Menu/configuration line (red brackets, white commands)
 if command -v apt &> /dev/null; then
-    # Debian/Ubuntu
-    echo -e "${RED}[ Menu-driven system configuration (beta): ${WHITE}sudo apt update && sudo apt install raspi-config${RED} ]${NC}"
+    # Check if this is a Raspberry Pi
+    if [[ -f /proc/device-tree/model ]] && grep -qi "raspberry" /proc/device-tree/model 2>/dev/null; then
+        # Raspberry Pi specific
+        echo -e "${RED}[ Menu-driven system configuration (beta): ${WHITE}sudo apt update && sudo apt install raspi-config${RED} ]${NC}"
+    else
+        # Regular Debian/Ubuntu
+        echo -e "${RED}[ System management: ${WHITE}htop${RED} | Updates: ${WHITE}sudo apt update && sudo apt upgrade${RED} | Logs: ${WHITE}journalctl -f${RED} ]${NC}"
+    fi
 elif command -v dnf &> /dev/null; then
     # Fedora
     echo -e "${RED}[ System management: ${WHITE}sudo dnf install cockpit && sudo systemctl enable --now cockpit.socket${RED} ]${NC}"
@@ -471,7 +496,8 @@ install() {
     echo -e "   • ${GREEN}Horizontal system information${NC}"
     echo -e "   • ${GREEN}Default terminal color scheme${NC}"
     echo -e "   • ${GREEN}Additional mount point detection${NC}"
-    echo -e "   • ${GREEN}Native last login integration${NC}"
+    echo -e "   • ${GREEN}Smart OS detection (Raspberry Pi vs regular systems)${NC}"
+    echo -e "   • ${GREEN}Last login info for Fedora (native for Debian)${NC}"
     echo
     echo -e "${CYAN}ℹ  Log out and SSH/login back in to see your new compact MOTD${NC}"
     echo -e "${CYAN}ℹ  To customize: sudo nano $MOTD_FILE${NC}"
