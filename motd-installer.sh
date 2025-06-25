@@ -215,15 +215,16 @@ get_ip() {
 # Function to get last login information (for Fedora systems)
 get_last_login() {
     # Get last login info (excluding current session)
-    last -2 $USER 2>/dev/null | head -2 | tail -1 | awk '{
-        if (NF >= 7) {
-            print $3, $4, $5, $6, $7, "from", $3
-        } else if (NF >= 6) {
-            print $3, $4, $5, $6, "from", $3
-        } else {
-            print $0
-        }
-    }' | sed 's/from from/from/'
+    local login_info=$(last -1 -w $USER 2>/dev/null | head -1)
+    if [ -n "$login_info" ] && ! echo "$login_info" | grep -q "currently logged in"; then
+        echo "$login_info" | awk '{
+            if (NF >= 7 && $3 != "") {
+                printf "%s %s %s %s from %s", $4, $5, $6, $7, $3
+            } else if (NF >= 6 && $3 != "") {
+                printf "%s %s %s from %s", $4, $5, $6, $3  
+            }
+        }'
+    fi
 }
 
 # Function to check additional mount points
@@ -255,7 +256,7 @@ DISK_TOTAL=$(get_disk_total)
 IP_ADDRESS=$(get_ip)
 
 # Get last login only for Fedora systems (Debian handles it natively)
-if command -v dnf &> /dev/null || command -v yum &> /dev/null; then
+if command -v dnf &> /dev/null || (command -v yum &> /dev/null && ! command -v apt &> /dev/null); then
     LAST_LOGIN=$(get_last_login)
 fi
 
