@@ -214,14 +214,13 @@ get_ip() {
 
 # Function to get last login information (for Fedora systems)
 get_last_login() {
-    # Get last login info (excluding current session)
-    local login_info=$(last -1 -w $USER 2>/dev/null | head -1)
-    if [ -n "$login_info" ] && ! echo "$login_info" | grep -q "currently logged in"; then
-        echo "$login_info" | awk '{
-            if (NF >= 7 && $3 != "") {
+    # Get the most recent previous login (not current session)
+    local previous_login=$(last -3 $USER 2>/dev/null | grep -v "still logged in" | head -1)
+    
+    if [ -n "$previous_login" ]; then
+        echo "$previous_login" | awk '{
+            if (NF >= 6 && $3 != "") {
                 printf "%s %s %s %s from %s", $4, $5, $6, $7, $3
-            } else if (NF >= 6 && $3 != "") {
-                printf "%s %s %s from %s", $4, $5, $6, $3  
             }
         }'
     fi
