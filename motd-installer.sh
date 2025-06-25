@@ -84,6 +84,9 @@ cleanup() {
     rm -f /etc/update-motd.d/10-dynamic-motd 2>/dev/null || true
     rm -f /etc/update-motd.d/*motd* 2>/dev/null || true
     
+    # Remove conflicting default scripts
+    rm -f /etc/update-motd.d/10-uname 2>/dev/null || true
+    
     print_success "Cleanup completed"
 }
 
@@ -135,15 +138,15 @@ if [[ $- == *i* ]]; then
     
 printf '\033[2J\033[H'
 
-# Color definitions - regular colors (not bright)
+# Color definitions - using default terminal color
 RED='\033[0;31m'
-GREEN='\033[0;32m'
+DEFAULT='\033[0;39m'    # Default terminal foreground color
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
-NC='\033[0m'
+NC='\033[0m'            # Reset to default
 
 # Function to get OS information
 get_os_info() {
@@ -218,7 +221,7 @@ check_additional_mounts() {
                 local percent=$(echo $disk_info | awk '{print $1}')
                 local total=$(echo $disk_info | awk '{print $2}')
                 local mount_name=$(echo "$mount_point" | sed 's|/||')
-                printf "${GREEN}%-10s     %2d%% of %s${NC}\n" \
+                printf "${DEFAULT}%-10s     %2d%% of %s${NC}\n" \
                     "${mount_name}:" "$percent" "$total"
             fi
         fi
@@ -252,8 +255,8 @@ else
     echo -e "${NC}"
 fi
 
-# Welcome line with mixed colors (green text, red OS info)
-echo -e "${GREEN}Welcome to ${RED}${OS_INFO}${GREEN} with Linux ${RED}${KERNEL}${NC}"
+# Welcome line with mixed colors (default text, red OS info)
+echo -e "${DEFAULT}Welcome to ${RED}${OS_INFO}${DEFAULT} with Linux ${RED}${KERNEL}${NC}"
 
 # Check for unsupported message (like Raspberry Pi)
 if echo "$OS_INFO" | grep -qi "bookworm\|unstable\|testing"; then
@@ -264,16 +267,16 @@ fi
 echo
 
 # Full system info line (uname -srnvm)
-echo -e "${GREEN}$(uname -srnvm)${NC}"
+echo -e "${DEFAULT}$(uname -srnvm)${NC}"
 
 # Compact system information in horizontal layout
-printf "${GREEN}System load:   %2d%%%-12s Up time:       %s${NC}\n" \
+printf "${DEFAULT}System load:   %2d%%%-12s Up time:       %s${NC}\n" \
     "$LOAD_PERCENT" "" "$UPTIME"
 
-printf "${GREEN}Memory usage:  %2d%% of %-8s IP:            %s${NC}\n" \
+printf "${DEFAULT}Memory usage:  %2d%% of %-8s IP:            %s${NC}\n" \
     "$MEMORY_PERCENT" "$MEMORY_TOTAL" "${IP_ADDRESS:-No connection}"
 
-printf "${GREEN}Usage of /:    %2d%% of %s${NC}\n" \
+printf "${DEFAULT}Usage of /:    %2d%% of %s${NC}\n" \
     "$DISK_PERCENT" "$DISK_TOTAL"
 
 # Check for additional mount points and display them
@@ -466,8 +469,9 @@ install() {
     echo -e "   • ${GREEN}Fancy ASCII hostname (toilet)${NC}"
     echo -e "   • ${GREEN}Raspberry Pi style compact layout${NC}"
     echo -e "   • ${GREEN}Horizontal system information${NC}"
-    echo -e "   • ${GREEN}Color-coded statistics${NC}"
+    echo -e "   • ${GREEN}Default terminal color scheme${NC}"
     echo -e "   • ${GREEN}Additional mount point detection${NC}"
+    echo -e "   • ${GREEN}Native last login integration${NC}"
     echo
     echo -e "${CYAN}ℹ  Log out and SSH/login back in to see your new compact MOTD${NC}"
     echo -e "${CYAN}ℹ  To customize: sudo nano $MOTD_FILE${NC}"
