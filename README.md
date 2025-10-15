@@ -12,11 +12,11 @@ A beautiful, feature-rich MOTD installer for Debian and Fedora systems.
 
 ```bash
 # Download and run
-curl -sSL https://raw.githubusercontent.com/YOUR-USERNAME/dynamic-motd-installer/main/motd-installer.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/oaquique/dynamic-motd-installer/main/motd_installer.sh | sudo bash
 
 # Or download, inspect, and run
-wget https://raw.githubusercontent.com/YOUR-USERNAME/dynamic-motd-installer/main/motd-installer.sh
-sudo bash motd-installer.sh
+wget https://raw.githubusercontent.com/oaquique/dynamic-motd-installer/main/motd_installer.sh
+sudo bash motd_installer.sh
 
 ## USAGE
 
