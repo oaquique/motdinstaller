@@ -21,13 +21,13 @@ sudo bash motd-installer.sh
 ## USAGE
 
 # Install (default)
-sudo bash motd-installer.sh
+sudo bash motd_installer.sh
 
 # Uninstall
-sudo bash motd-installer.sh --uninstall
+sudo bash motd_installer.sh --uninstall
 
 # Help
-bash motd-installer.sh --help
+bash motd_installer.sh --help
 
 ## CUSTOMIZATION
 The MOTD script is located at:
