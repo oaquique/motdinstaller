@@ -334,7 +334,6 @@ fi
 
 echo
 
-fi
 COMPACT_MOTD_EOF
     
     chmod +x "$script_path"
