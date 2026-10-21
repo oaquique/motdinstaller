@@ -312,6 +312,13 @@ check_additional_mounts
 # Empty line before menu
 echo
 
+# Prefer btop when installed; checked at every login, so it follows the machine
+if command -v btop &> /dev/null; then
+    MONITOR_CMD="btop"
+else
+    MONITOR_CMD="htop"
+fi
+
 # Menu/configuration line (red brackets, white commands)
 if command -v apt &> /dev/null; then
     # Check if this is a Raspberry Pi
@@ -326,7 +333,7 @@ if command -v apt &> /dev/null; then
         else
             UPDATE_CMD="sudo apt update && sudo apt upgrade"
         fi
-        echo -e "${RED}[ System management: ${WHITE}htop${RED} | Updates: ${WHITE}${UPDATE_CMD}${RED} | Logs: ${WHITE}journalctl -f${RED} ]${NC}"
+        echo -e "${RED}[ System management: ${WHITE}${MONITOR_CMD}${RED} | Updates: ${WHITE}${UPDATE_CMD}${RED} | Logs: ${WHITE}journalctl -f${RED} ]${NC}"
     fi
 elif command -v dnf &> /dev/null; then
     # Fedora
@@ -336,7 +343,7 @@ elif command -v yum &> /dev/null; then
     echo -e "${RED}[ System management: ${WHITE}sudo yum install cockpit && sudo systemctl enable --now cockpit.socket${RED} ]${NC}"
 else
     # Generic
-    echo -e "${RED}[ System monitoring: ${WHITE}htop${RED} | Logs: ${WHITE}journalctl -f${RED} | Config: ${WHITE}sudo nano /etc/profile.d/00-dynamic-motd.sh${RED} ]${NC}"
+    echo -e "${RED}[ System monitoring: ${WHITE}${MONITOR_CMD}${RED} | Logs: ${WHITE}journalctl -f${RED} | Config: ${WHITE}sudo nano /etc/profile.d/00-dynamic-motd.sh${RED} ]${NC}"
 fi
 
 echo
