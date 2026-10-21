@@ -358,19 +358,20 @@ fi
 
 # Menu/configuration line (red brackets, white commands)
 if command -v apt &> /dev/null; then
-    # Check if this is a Raspberry Pi
-    if [[ -f /proc/device-tree/model ]] && grep -qi "raspberry" /proc/device-tree/model 2>/dev/null; then
-        # Raspberry Pi specific
-        echo -e "${RED}[ Menu-driven system configuration (beta): ${WHITE}sudo apt update && sudo apt install raspi-config${RED} ]${NC}"
+    # Prefer nala when installed; checked at every login, so it follows the machine
+    if command -v nala &> /dev/null; then
+        UPDATE_CMD="sudo nala upgrade"
     else
-        # Regular Debian/Ubuntu
-        # Prefer nala when installed; checked at every login, so it follows the machine
-        if command -v nala &> /dev/null; then
-            UPDATE_CMD="sudo nala upgrade"
+        UPDATE_CMD="sudo apt update && sudo apt upgrade"
+    fi
+    echo -e "${RED}[ System management: ${WHITE}${MONITOR_CMD}${RED} | Updates: ${WHITE}${UPDATE_CMD}${RED} | Logs: ${WHITE}journalctl -f${RED} ]${NC}"
+    # Raspberry Pi: add a raspi-config line, or how to install it when missing
+    if [[ -f /proc/device-tree/model ]] && grep -qi "raspberry" /proc/device-tree/model 2>/dev/null; then
+        if command -v raspi-config &> /dev/null; then
+            echo -e "${RED}[ Config: ${WHITE}sudo raspi-config${RED} ]${NC}"
         else
-            UPDATE_CMD="sudo apt update && sudo apt upgrade"
+            echo -e "${RED}[ Menu-driven system configuration (beta): ${WHITE}${UPDATE_CMD/upgrade/install raspi-config}${RED} ]${NC}"
         fi
-        echo -e "${RED}[ System management: ${WHITE}${MONITOR_CMD}${RED} | Updates: ${WHITE}${UPDATE_CMD}${RED} | Logs: ${WHITE}journalctl -f${RED} ]${NC}"
     fi
 elif command -v dnf &> /dev/null; then
     # Fedora
