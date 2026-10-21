@@ -6,20 +6,23 @@ A beautiful, feature-rich MOTD installer for Debian and Fedora systems.
 - 💚 Green welcome banner
 - 📊 Color-coded system monitoring
 - 🌐 Network information
+- 📦 Update tip shows `nala` when it is installed, `apt` otherwise (checked at every login)
 - ⚡ Works on Debian and Fedora
 
 ## Installation
 
 ```bash
 # Download and run
-curl -sSL https://raw.githubusercontent.com/oaquique/dynamic-motd-installer/main/motd_installer.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/oaquique/motdinstaller/main/motd_installer.sh | sudo bash
 
 # Or download, inspect, and run
-wget https://raw.githubusercontent.com/oaquique/dynamic-motd-installer/main/motd_installer.sh
+wget https://raw.githubusercontent.com/oaquique/motdinstaller/main/motd_installer.sh
 sudo bash motd_installer.sh
+```
 
-## USAGE
+## Usage
 
+```bash
 # Install (default)
 sudo bash motd_installer.sh
 
@@ -28,11 +31,16 @@ sudo bash motd_installer.sh --uninstall
 
 # Help
 bash motd_installer.sh --help
+```
 
-## CUSTOMIZATION
+Re-running the installer is safe: it replaces the previous MOTD and keeps the
+original `/etc/pam.d/sshd` backup that `--uninstall` restores.
+
+## Customization
+
 The MOTD script is located at:
 
-Debian/Ubuntu: /etc/update-motd.d/00-dynamic-motd
-Fedora: /etc/profile.d/00-dynamic-motd.sh
+- Debian/Ubuntu: `/etc/update-motd.d/00-dynamic-motd`
+- Fedora: `/etc/profile.d/00-dynamic-motd.sh`
 
 Edit these files to customize colors, layout, or add additional information.

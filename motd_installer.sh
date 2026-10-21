@@ -2,7 +2,7 @@
 
 # Universal Compact MOTD Installer for Debian and Fedora
 # Features: Raspberry Pi style compact layout, clear screen, fancy hostname
-# Usage: sudo bash motd-installer.sh
+# Usage: sudo bash motd_installer.sh
 # Version: 4.0
 
 set -e
@@ -92,18 +92,19 @@ cleanup() {
 
 # Install dependencies
 install_dependencies() {
-    print_info "Installing dependencies (bc, toilet)..."
-    
+    print_info "Installing dependencies (bc, toilet, procps)..."
+
+    # procps provides free and uptime, which minimal images may lack
     case $PACKAGE_MANAGER in
         apt)
             apt update -qq 2>/dev/null || true
-            apt install -y bc toilet figlet > /dev/null 2>&1
+            apt install -y bc toilet figlet procps > /dev/null 2>&1
             ;;
         dnf)
-            dnf install -y bc toilet figlet > /dev/null 2>&1
+            dnf install -y bc toilet figlet procps-ng > /dev/null 2>&1
             ;;
         yum)
-            yum install -y bc toilet figlet > /dev/null 2>&1
+            yum install -y bc toilet figlet procps-ng > /dev/null 2>&1
             ;;
     esac
     
@@ -319,7 +320,13 @@ if command -v apt &> /dev/null; then
         echo -e "${RED}[ Menu-driven system configuration (beta): ${WHITE}sudo apt update && sudo apt install raspi-config${RED} ]${NC}"
     else
         # Regular Debian/Ubuntu
-        echo -e "${RED}[ System management: ${WHITE}htop${RED} | Updates: ${WHITE}sudo apt update && sudo apt upgrade${RED} | Logs: ${WHITE}journalctl -f${RED} ]${NC}"
+        # Prefer nala when installed; checked at every login, so it follows the machine
+        if command -v nala &> /dev/null; then
+            UPDATE_CMD="sudo nala upgrade"
+        else
+            UPDATE_CMD="sudo apt update && sudo apt upgrade"
+        fi
+        echo -e "${RED}[ System management: ${WHITE}htop${RED} | Updates: ${WHITE}${UPDATE_CMD}${RED} | Logs: ${WHITE}journalctl -f${RED} ]${NC}"
     fi
 elif command -v dnf &> /dev/null; then
     # Fedora
@@ -366,8 +373,10 @@ UPDATE_MOTD_EOF
     
     # Configure PAM for SSH
     if [ -f /etc/pam.d/sshd ]; then
-        cp /etc/pam.d/sshd /etc/pam.d/sshd.backup 2>/dev/null || true
-        sed -i '/pam_motd/d' /etc/pam.d/sshd 2>/dev/null || true
+        # Keep the first backup only, so a re-run never overwrites the original
+        [ -f /etc/pam.d/sshd.backup ] || cp /etc/pam.d/sshd /etc/pam.d/sshd.backup 2>/dev/null || true
+        # Drop pam_motd lines and any update-motd hook from a previous run
+        sed -i '/pam_motd/d; /pam_exec\.so \/usr\/bin\/update-motd/d' /etc/pam.d/sshd 2>/dev/null || true
         echo "session optional pam_exec.so /usr/bin/update-motd" >> /etc/pam.d/sshd
         echo "session optional pam_motd.so motd=/run/motd.dynamic noupdate" >> /etc/pam.d/sshd
     fi
