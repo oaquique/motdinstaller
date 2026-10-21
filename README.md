@@ -8,6 +8,7 @@ A beautiful, feature-rich MOTD installer for Debian and Fedora systems.
 - 🌐 Network information
 - 📦 Update tip shows `nala` when it is installed, `apt` otherwise (checked at every login)
 - 📈 Monitoring tip shows `btop` when it is installed, `htop` otherwise (checked at every login)
+- 🔤 Sets up a UTF-8 locale (en_US.UTF-8) when the machine has none, as on minimal Debian images; existing UTF-8 setups are left alone
 - ⚡ Works on Debian and Fedora
 
 ## Installation

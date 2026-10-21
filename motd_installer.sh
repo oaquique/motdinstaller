@@ -126,6 +126,43 @@ install_dependencies() {
     print_success "Dependencies installed (toilet: $USE_TOILET, bc: $USE_BC)"
 }
 
+# Make sure a UTF-8 locale exists. Minimal images (e.g. Debian LXC templates)
+# ship only LANG=C, so the client's en_US.UTF-8 is dropped on SSH login and
+# UTF-8 tools such as btop refuse to start. Existing UTF-8 setups are left alone.
+ensure_utf8_locale() {
+    print_info "Checking for a UTF-8 locale..."
+
+    case $PACKAGE_MANAGER in
+        apt)
+            if locale -a 2>/dev/null | grep -viE '^(C|POSIX)(\.|$)' | grep -qiE 'utf-?8'; then
+                print_success "UTF-8 locale already present"
+            else
+                apt install -y locales > /dev/null 2>&1
+                sed -i -E 's/^#\s*(en_US\.UTF-8 UTF-8)/\1/' /etc/locale.gen 2>/dev/null || true
+                grep -qE '^en_US\.UTF-8 UTF-8' /etc/locale.gen 2>/dev/null || echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+                locale-gen > /dev/null 2>&1
+                print_success "Generated en_US.UTF-8"
+            fi
+            # Set a UTF-8 default only when there is none (unset, C or POSIX)
+            local current=$(grep -hE '^LANG=' /etc/default/locale 2>/dev/null | cut -d= -f2 | tr -d '"')
+            case "$current" in
+                ""|C|POSIX)
+                    update-locale LANG=en_US.UTF-8 > /dev/null 2>&1 && print_success "Default locale set to en_US.UTF-8"
+                    ;;
+                *)
+                    print_success "Default locale kept ($current)"
+                    ;;
+            esac
+            ;;
+        dnf|yum)
+            if ! locale -a 2>/dev/null | grep -qiE '^en_US\.utf-?8$'; then
+                $PACKAGE_MANAGER install -y glibc-langpack-en > /dev/null 2>&1 || true
+            fi
+            print_success "UTF-8 locale available"
+            ;;
+    esac
+}
+
 # Create the compact MOTD script
 create_compact_motd() {
     local script_path="$1"
@@ -477,7 +514,8 @@ install() {
     detect_os
     cleanup
     install_dependencies
-    
+    ensure_utf8_locale
+
     # Choose installation method based on OS
     case $OS in
         debian|ubuntu)
